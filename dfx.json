@@ -1,0 +1,7 @@
+{
+  "canisters": {
+    "NFT_MiningMaze": {
+      "main": "src/Main.mo"
+    }
+  }
+}

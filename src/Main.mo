@@ -23,6 +23,7 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   stable var nftsLegendary = List.nil<Types.Nft>();
   stable var nftsLegendary_Limit : Nat64 = 111;		// 9443~9553
   stable var custodians = List.make<Principal>(custodian);
+  stable var whitelist = List.nil<Principal>();
   stable var logo : Types.LogoResult = init.logo;
   stable var name : Text = init.name;
   stable var symbol : Text = init.symbol;
@@ -428,6 +429,25 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   public func setBaseURLCustom(url: Text) : async Text {
     baseURL := url;
     return baseURL;
+  };
+
+  public func upgradeVersion(message: Text) : async Text {
+    return "upgrade versoin :"  # message;
+  };
+
+  public shared({ caller }) func addWhiteList(user: Principal) : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    if (List.some(whitelist, func (member : Principal) : Bool { member == user } )) {
+      return #Err(#AlreadyExist);
+    };
+    whitelist := List.push(user, whitelist);
+    return #Ok(user);
+  };
+
+  public func getWhiteListAll() : async [Principal] {
+    return List.toArray(whitelist);
   };
 
   // don't need to expansion. this function will check normal NFT's minting or not. 

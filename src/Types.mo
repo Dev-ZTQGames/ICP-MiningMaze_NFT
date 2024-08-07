@@ -4,6 +4,7 @@ import Nat16 "mo:base/Nat16";
 import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Blob "mo:base/Blob";
+import Bool "mo:base/Bool";
 import Principal "mo:base/Principal";
 
 module {
@@ -20,6 +21,8 @@ module {
     #ZeroAddress;
     #Other;
     #ExceedLimit;
+    #AlreadyExist;
+    #NotPeriod;
   };
 
   public type Result<S, E> = {
@@ -52,10 +55,10 @@ module {
     metadata: MetadataDesc;
   };
 
-  public type WhiteList = {
-    user: Principal;
-    grade: Text;
-  };
+//  public type WhiteList = {
+//   user: Principal;
+//    flag: Bool;
+//  };
 
   public type ExtendedMetadataResult = Result<{
     metadata_desc: MetadataDesc;

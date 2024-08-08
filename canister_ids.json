@@ -1,5 +1,11 @@
 {
   "NFT_MiningMaze": {
     "ic": "sygs5-saaaa-aaaam-aclha-cai"
+  },
+  "NFT_MiningMaze_live": {
+    "ic": "vrcfw-laaaa-aaaam-ac7ca-cai"
+  },
+  "NFT_MiningMaze_test": {
+    "ic": "vkhzt-ryaaa-aaaam-ac7aq-cai"
   }
 }

@@ -22,6 +22,7 @@ module {
     #Other;
     #ExceedLimit;
     #AlreadyExist;
+    #NotWhitelist;
     #NotPeriod;
   };
 

@@ -24,12 +24,20 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   stable var nftsLegendary_Limit : Nat64 = 111;		// 9443~9553
   stable var custodians = List.make<Principal>(custodian);
   stable var whitelist = List.nil<Principal>();
+  stable var mintingGT_WL = List.nil<Principal>();
+  stable var mintingFCFS_WL = List.nil<Principal>();
   stable var logo : Types.LogoResult = init.logo;
   stable var name : Text = init.name;
   stable var symbol : Text = init.symbol;
   stable var maxLimit : Nat16 = init.maxLimit;
+  stable var IsMintingPeriod : Bool = false;
+  stable var IsGT_WL_Period : Bool = false;
+  stable var IsFCFS_WL_Period : Bool = false;
+  stable var CountNormalWLDivided : Nat64 = 2000;
+  stable var CountGT_WL : Nat64 = 2;
+  stable var CountFCFS_WL : Nat64 = 2;
 
-  stable var baseURL : Text = "https://cdn.aurorahunt.xyz/nft/mm/";
+  stable var baseURL : Text = "https://cdn.nebula3gamefi.com/nft/mm/";
 
   // https://forum.dfinity.org/t/is-there-any-address-0-equivalent-at-dfinity-motoko/5445/3
   let null_address : Principal = Principal.fromText("aaaaa-aa");
@@ -301,6 +309,10 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
     return #Err(#InvalidTokenId);
   };
 
+  public query func statusPeriod() : async [Bool] {
+    return [IsMintingPeriod, IsGT_WL_Period, IsFCFS_WL_Period];
+  };
+
   public query func supportedInterfacesDip721() : async [Types.InterfaceId] {
     return [#TransferNotification, #Burn, #Mint];
   };
@@ -431,23 +443,93 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
     return baseURL;
   };
 
-  public func upgradeVersion(message: Text) : async Text {
-    return "upgrade versoin :"  # message;
-  };
-
   public shared({ caller }) func addWhiteList(user: Principal) : async Types.OwnerResult {
     if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
       return #Err(#Unauthorized);
     };
-    if (List.some(whitelist, func (member : Principal) : Bool { member == user } )) {
+    if (List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == user } )) {
       return #Err(#AlreadyExist);
     };
     whitelist := List.push(user, whitelist);
     return #Ok(user);
   };
 
+  public shared({ caller }) func deleteWhiteList(user: Principal) : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == user } )) {
+      return #Err(#NotWhitelist);
+    };
+    whitelist := List.filter(whitelist, func (registered_user: Principal) : Bool { registered_user != user });
+    return #Ok(user);
+  };
+
   public func getWhiteListAll() : async [Principal] {
     return List.toArray(whitelist);
+  };
+
+  public func getMintingGT_WL_All() : async [Principal] {
+    return List.toArray(mintingGT_WL);
+  };
+
+  public func getMintingFCFS_WL_All() : async [Principal] {
+    return List.toArray(mintingFCFS_WL);
+  };
+
+  public func IsWhiteList(user: Principal) : async Types.OwnerResult {
+    if (List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == user } )) {
+      return #Ok(user);
+    };
+    return #Err(#NotWhitelist);
+  };
+
+  public shared({ caller }) func startMinting() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsMintingPeriod := true;
+    return #Ok(caller);
+  };
+
+  public shared({ caller }) func stopMinting() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsMintingPeriod := false;
+    return #Ok(caller);
+  };
+
+  public shared({ caller }) func startGT_WL() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsGT_WL_Period := true;
+    return #Ok(caller);
+  };
+
+  public shared({ caller }) func stopGT_WL() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsGT_WL_Period := false;
+    return #Ok(caller);
+  };
+
+  public shared({ caller }) func startFCFS_WL() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsFCFS_WL_Period := true;
+    return #Ok(caller);
+  };
+
+  public shared({ caller }) func stopFCFS_WL() : async Types.OwnerResult {
+    if (not List.some(custodians, func (custodian : Principal) : Bool { custodian == caller })) {
+      return #Err(#Unauthorized);
+    };
+    IsFCFS_WL_Period := false;
+    return #Ok(caller);
   };
 
   // don't need to expansion. this function will check normal NFT's minting or not. 
@@ -498,14 +580,54 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
 
   public shared({ caller }) func mintDip721(to: Principal, metadata: Types.MetadataDesc) : async Types.MintReceipt {
 
+    if ( Nat64.fromNat( List.size(nfts) ) < CountNormalWLDivided ) {
+      if ( IsGT_WL_Period != true ) {
+        return #Err(#NotPeriod);
+      };
+    };
+
+    if ( Nat64.fromNat( List.size(nfts) ) >= CountNormalWLDivided ) {
+      if ( IsFCFS_WL_Period != true ) {
+        return #Err(#NotPeriod);
+      };
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == caller } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == to } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if ( IsMintingPeriod != true ) {
+       return #Err(#NotPeriod);
+    };
+
     let newId = Nat64.fromNat(List.size(nfts));
 
     if ( newId + 1 > nfts_Limit ) {
       return #Err(#ExceedLimit);
     };
 
-    if ( Nat64.fromNat(List.size(List.filter(nfts, func(token: Types.Nft) : Bool { token.owner == to }))) + 1 > 2 ) {
-      return #Err(#ExceedLimit);
+//    if ( Nat64.fromNat(List.size(List.filter(nfts, func(token: Types.Nft) : Bool { token.owner == to }))) + 1 > 2 ) {
+//      return #Err(#ExceedLimit);
+//    };
+
+    if ( IsGT_WL_Period == true ) {
+      if ( Nat64.fromNat(List.size(List.filter(mintingGT_WL, func(user: Principal) : Bool { user == to }))) + 1 > CountGT_WL ) {
+        return #Err(#ExceedLimit);
+      } else {
+	mintingGT_WL := List.push(to, mintingGT_WL);
+      };
+    };
+
+    if ( IsFCFS_WL_Period == true ) {
+      if ( Nat64.fromNat(List.size(List.filter(mintingFCFS_WL, func(user: Principal) : Bool { user == to }))) + 1 > CountFCFS_WL ) {
+        return #Err(#ExceedLimit);
+      } else {
+	mintingFCFS_WL := List.push(to, mintingFCFS_WL);
+      };
     };
 
     let nft : Types.Nft = {
@@ -525,7 +647,19 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   };
 
   public shared({ caller }) func mintRareCustom(to: Principal, metadata: Types.MetadataDesc) : async Types.MintReceipt {
-  
+    
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == caller } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == to } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if ( IsMintingPeriod != true ) {
+       return #Err(#NotPeriod);
+    };
+
     let newId = Nat64.fromNat(List.size(nftsRare));
 
     if ( newId + 1 > nftsRare_Limit ) {
@@ -554,6 +688,18 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   };
 
   public shared({ caller }) func mintEpicCustom(to: Principal, metadata: Types.MetadataDesc) : async Types.MintReceipt {
+    
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == caller } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == to } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if ( IsMintingPeriod != true ) {
+       return #Err(#NotPeriod);
+    };
 
     let newId = Nat64.fromNat(List.size(nftsEpic));
 
@@ -583,6 +729,18 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   };
 
   public shared({ caller }) func mintUniqueCustom(to: Principal, metadata: Types.MetadataDesc) : async Types.MintReceipt {
+    
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == caller } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == to } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if ( IsMintingPeriod != true ) {
+       return #Err(#NotPeriod);
+    };
 
     let newId = Nat64.fromNat(List.size(nftsUnique));
 
@@ -612,6 +770,18 @@ shared actor class Dip721NFT(custodian: Principal, init : Types.Dip721NonFungibl
   };
 
   public shared({ caller }) func mintLegendaryCustom(to: Principal, metadata: Types.MetadataDesc) : async Types.MintReceipt {
+    
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == caller } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if (not List.some(whitelist, func (registered_user : Principal) : Bool { registered_user == to } )) {
+      return #Err(#NotWhitelist);
+    };
+
+    if ( IsMintingPeriod != true ) {
+       return #Err(#NotPeriod);
+    };
 
     let newId = Nat64.fromNat(List.size(nftsLegendary));
 
